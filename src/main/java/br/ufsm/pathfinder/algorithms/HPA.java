@@ -226,7 +226,7 @@ public class HPA {
     }
 
     private List<Cell> localSearchPath(Cell start, Cell goal, int x0, int y0, int x1, int y1) {
-        grid.reset();
+        grid.reset(x0, y0, x1, y1);
 
         PriorityQueue<Cell> open = new PriorityQueue<>(Comparator.comparingDouble(c -> c.f));
         Set<Cell> closed = new HashSet<>();

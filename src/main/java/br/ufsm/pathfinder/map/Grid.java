@@ -56,6 +56,13 @@ public class Grid {
                 cells[y][x].reset();
     }
 
+    // reseta custos só da região informada (usado por buscas locais restritas a um cluster)
+    public void reset(int x0, int y0, int x1, int y1) {
+        for (int y = y0; y <= y1; y++)
+            for (int x = x0; x <= x1; x++)
+                cells[y][x].reset();
+    }
+
     @Override
     public String toString() {
         return "Grid(" + width + "x" + height + ")";
