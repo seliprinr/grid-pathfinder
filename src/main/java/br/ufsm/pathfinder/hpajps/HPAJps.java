@@ -14,6 +14,8 @@ public class HPAJps {
 
     private final List<Cell> abstractNodes = new ArrayList<>();
     private final Map<Cell, List<Edge>> abstractGraph = new HashMap<>();
+    private int portalPairCount;
+    private int jumpPointsFound;
 
     public HPAJps(Grid grid, int clusterSize) {
         this.grid = grid;
@@ -26,6 +28,7 @@ public class HPAJps {
     private void buildAbstractGraph() {
         abstractNodes.clear();
         abstractGraph.clear();
+        portalPairCount = 0;
         identifyPortals();
         connectPortalsIntraClusters();
     }
@@ -65,6 +68,7 @@ public class HPAJps {
         }
         abstractGraph.get(a).add(new Edge(b, 1.0));
         abstractGraph.get(b).add(new Edge(a, 1.0));
+        portalPairCount++;
     }
 
     private void connectPortalsIntraClusters() {
@@ -106,37 +110,49 @@ public class HPAJps {
 
     public List<Cell> search(Cell start, Cell goal) {
         nodesExpanded = 0;
+        jumpPointsFound = 0;
+
+        List<Edge> prevStartEdges = abstractGraph.get(start);
+        List<Edge> prevGoalEdges  = abstractGraph.get(goal);
 
         abstractGraph.put(start, new ArrayList<>());
-        abstractGraph.put(goal, new ArrayList<>());
-        connectToAbstractGraph(start);
-        connectToAbstractGraph(goal);
+        abstractGraph.put(goal,  new ArrayList<>());
+        List<Cell> startPortals = connectToAbstractGraph(start);
+        List<Cell> goalPortals  = connectToAbstractGraph(goal);
 
         List<Cell> abstractPath = abstractSearch(start, goal);
 
-        abstractGraph.remove(start);
-        abstractGraph.remove(goal);
+        for (Cell p : startPortals) abstractGraph.get(p).removeIf(e -> e.target.equals(start));
+        for (Cell p : goalPortals)  abstractGraph.get(p).removeIf(e -> e.target.equals(goal));
+
+        if (prevStartEdges != null) abstractGraph.put(start, prevStartEdges);
+        else                        abstractGraph.remove(start);
+        if (prevGoalEdges != null)  abstractGraph.put(goal, prevGoalEdges);
+        else                        abstractGraph.remove(goal);
 
         if (abstractPath.isEmpty()) return Collections.emptyList();
 
         return refinePath(abstractPath);
     }
 
-    private void connectToAbstractGraph(Cell node) {
+    private List<Cell> connectToAbstractGraph(Cell node) {
         int cx = (node.x / clusterSize) * clusterSize;
         int cy = (node.y / clusterSize) * clusterSize;
         int x1 = Math.min(cx + clusterSize - 1, grid.width - 1);
         int y1 = Math.min(cy + clusterSize - 1, grid.height - 1);
 
+        List<Cell> connected = new ArrayList<>();
         for (Cell portal : abstractNodes) {
             if (portal.x >= cx && portal.x <= x1 && portal.y >= cy && portal.y <= y1) {
                 double cost = localSearchWithJPS(node, portal, cx, cy, x1, y1);
                 if (cost >= 0) {
                     abstractGraph.get(node).add(new Edge(portal, cost));
                     abstractGraph.get(portal).add(new Edge(node, cost));
+                    connected.add(portal);
                 }
             }
         }
+        return connected;
     }
 
     private List<Cell> abstractSearch(Cell start, Cell goal) {
@@ -207,7 +223,6 @@ public class HPAJps {
     }
 
     private List<Cell> localSearchPathWithJPS(Cell start, Cell goal, int x0, int y0, int x1, int y1) {
-        // cria um subgrid restrito ao cluster para o JPS
         Grid subGrid = new ClippedGrid(grid, x0, y0, x1, y1);
         JPS jps = new JPS(subGrid);
 
@@ -216,7 +231,9 @@ public class HPAJps {
 
         if (localStart == null || localGoal == null) return Collections.emptyList();
 
-        return jps.search(localStart, localGoal);
+        List<Cell> path = jps.search(localStart, localGoal);
+        jumpPointsFound += jps.getJumpPointsFound();
+        return path;
     }
 
     private List<Cell> reconstructAbstractPath(Map<Cell, Cell> parentMap, Cell goal) {
@@ -251,7 +268,11 @@ public class HPAJps {
     }
 
     public int getPortalCount() {
-        return abstractNodes.size();
+        return portalPairCount;
+    }
+
+    public int getJumpPointsFound() {
+        return jumpPointsFound;
     }
 
     private static class Edge {

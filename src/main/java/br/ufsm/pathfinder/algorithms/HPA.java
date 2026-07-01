@@ -10,6 +10,7 @@ public class HPA {
     private final Grid grid;
     private final int clusterSize;
     private int nodesExpanded;
+    private int portalPairCount;
 
     // grafo abstrato: cada portal é um nó, com arestas para outros portais
     private final List<Cell> abstractNodes = new ArrayList<>();
@@ -26,11 +27,9 @@ public class HPA {
     private void buildAbstractGraph() {
         abstractNodes.clear();
         abstractGraph.clear();
+        portalPairCount = 0;
 
-        // 1. identifica portais entre clusters vizinhos
         identifyPortals();
-
-        // 2. conecta portais dentro do mesmo cluster
         connectPortalsIntraClusters();
     }
 
@@ -68,9 +67,9 @@ public class HPA {
             abstractGraph.put(b, new ArrayList<>());
         }
 
-        // conecta os dois lados do portal com custo 1
         abstractGraph.get(a).add(new Edge(b, 1.0));
         abstractGraph.get(b).add(new Edge(a, 1.0));
+        portalPairCount++;
     }
 
     private void connectPortalsIntraClusters() {
@@ -115,41 +114,47 @@ public class HPA {
     public List<Cell> search(Cell start, Cell goal) {
         nodesExpanded = 0;
 
-        // insere start e goal temporariamente no grafo
-        abstractGraph.put(start, new ArrayList<>());
-        abstractGraph.put(goal, new ArrayList<>());
-        connectToAbstractGraph(start);
-        connectToAbstractGraph(goal);
+        List<Edge> prevStartEdges = abstractGraph.get(start);
+        List<Edge> prevGoalEdges  = abstractGraph.get(goal);
 
-        // busca abstrata
+        abstractGraph.put(start, new ArrayList<>());
+        abstractGraph.put(goal,  new ArrayList<>());
+        List<Cell> startPortals = connectToAbstractGraph(start);
+        List<Cell> goalPortals  = connectToAbstractGraph(goal);
+
         List<Cell> abstractPath = abstractSearch(start, goal);
 
-        // remove start e goal do grafo
-        abstractGraph.remove(start);
-        abstractGraph.remove(goal);
+        for (Cell p : startPortals) abstractGraph.get(p).removeIf(e -> e.target.equals(start));
+        for (Cell p : goalPortals)  abstractGraph.get(p).removeIf(e -> e.target.equals(goal));
+
+        if (prevStartEdges != null) abstractGraph.put(start, prevStartEdges);
+        else                        abstractGraph.remove(start);
+        if (prevGoalEdges != null)  abstractGraph.put(goal, prevGoalEdges);
+        else                        abstractGraph.remove(goal);
 
         if (abstractPath.isEmpty()) return Collections.emptyList();
 
-        // refinamento local
         return refinePath(abstractPath);
     }
 
-    private void connectToAbstractGraph(Cell node) {
-        // descobre em qual cluster o nó está
+    private List<Cell> connectToAbstractGraph(Cell node) {
         int cx = (node.x / clusterSize) * clusterSize;
         int cy = (node.y / clusterSize) * clusterSize;
         int x1 = Math.min(cx + clusterSize - 1, grid.width - 1);
         int y1 = Math.min(cy + clusterSize - 1, grid.height - 1);
 
+        List<Cell> connected = new ArrayList<>();
         for (Cell portal : abstractNodes) {
             if (portal.x >= cx && portal.x <= x1 && portal.y >= cy && portal.y <= y1) {
                 double cost = localSearch(node, portal, cx, cy, x1, y1);
                 if (cost >= 0) {
                     abstractGraph.get(node).add(new Edge(portal, cost));
                     abstractGraph.get(portal).add(new Edge(node, cost));
+                    connected.add(portal);
                 }
             }
         }
+        return connected;
     }
 
     private List<Cell> abstractSearch(Cell start, Cell goal) {
@@ -256,7 +261,7 @@ public class HPA {
                 double moveCost = isDiagonal ? 1.414 : 1.0;
                 double tentativeG = current.g + moveCost;
 
-                if (tentativeG < neighbor.g || neighbor.g == 0) {
+                if (tentativeG < neighbor.g) {
                     neighbor.g = tentativeG;
                     neighbor.h = heuristic(neighbor, goal);
                     neighbor.f = neighbor.g + neighbor.h;
@@ -314,7 +319,7 @@ public class HPA {
     }
 
     public int getPortalCount() {
-        return abstractNodes.size();
+        return portalPairCount;
     }
 
     // classe interna

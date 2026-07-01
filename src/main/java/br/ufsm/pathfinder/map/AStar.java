@@ -48,10 +48,10 @@ public class AStar {
 
                 // custo do movimento: diagonal custa mais
                 boolean isDiagonal = (dir[0] != 0 && dir[1] != 0);
-                double moveCost = isDiagonal ? 1.414 : 1.0;
+                double moveCost = isDiagonal ? Math.sqrt(2) : 1.0;
                 double tentativeG = current.g + moveCost;
 
-                if (tentativeG < neighbor.g || neighbor.g == 0) {
+                if (tentativeG < neighbor.g) {
                     neighbor.g = tentativeG;
                     neighbor.h = heuristic(neighbor, goal);
                     neighbor.f = neighbor.g + neighbor.h;
