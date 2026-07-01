@@ -60,31 +60,19 @@ grid-pathfinder/
 
 ## Como executar
 
-### Teste rápido (mapa 10x10 gerado automaticamente)
+### Benchmark completo (todos os mapas)
+
+Execute cada bloco em ordem — os resultados são acumulados no mesmo CSV:
 
 ```bash
-mvn compile exec:java
+mvn compile
+
+mvn exec:java -Dexec.args="maps/256            results/results.csv"
+mvn exec:java -Dexec.args="maps/512/maze-map   results/results.csv"
+mvn exec:java -Dexec.args="maps/512/room-map   results/results.csv"
+mvn exec:java -Dexec.args="maps/512/random-map results/results.csv"
+mvn exec:java -Dexec.args="maps/1024           results/results.csv"
 ```
-
-### Benchmark em mapa real
-
-```bash
-mvn compile exec:java -Dexec.args="maps/seu_mapa.map results/output.csv"
-```
-
-Os mapas devem estar no formato `.map` do [Moving AI Lab](https://www.movingai.com/benchmarks/).
-
-### Resultado esperado
-
-```
-Mapa carregado: Grid(256x256)
-Pré-processando HPA*...
-Pré-processando HPA-JPS...
-Rodando benchmarks...
-Resultados salvos em: results/output.csv
-```
-
----
 
 ## Métricas coletadas
 
@@ -101,6 +89,7 @@ O benchmark gera um CSV com as seguintes colunas:
 | `path_cost` | Custo total do caminho |
 | `abstract_graph_size` | Tamanho do grafo abstrato (HPA\* e HPA-JPS) |
 | `portal_count` | Número de portais identificados |
+| `jump_points` | Número de jump points encontrados (JPS e HPA-JPS) |
 
 ---
 
@@ -108,11 +97,26 @@ O benchmark gera um CSV com as seguintes colunas:
 
 Mapas obtidos em [movingai.com/benchmarks](https://www.movingai.com/benchmarks/grids.html).
 
-| Mapa | Tamanho | Densidade |
-|------|---------|-----------|
-| maze512.map | 512×512 | Alta |
-| room256.map | 256×256 | Média |
-| open1024.map | 1024×1024 | Baixa |
+### 256×256 — Mapas de cidade
+
+| Arquivo | Tipo | Descrição |
+|---------|------|-----------|
+| `Berlin_0_256.map` | Cidade | Mapa urbano de Berlim |
+| `Denver_1_256.map` | Cidade | Mapa urbano de Denver |
+
+### 512×512 — Mapas artificiais
+
+| Arquivo | Tipo | Densidade |
+|---------|------|-----------|
+| `maze512-1-0/1/2.map` | Labirinto | Alta — corredores de 1 célula |
+| `8room_000/001/002.map` | Salas | Média — blocos de salas com aberturas |
+| `random512-10-0/1/2.map` | Aleatório | Baixa — 10% de obstáculos |
+
+### 1024×1024 — Mapas de jogo
+
+| Arquivo | Tipo | Descrição |
+|---------|------|-----------|
+| `Expedition.map` | Jogo | Mapa de jogo comercial |
 
 ---
 

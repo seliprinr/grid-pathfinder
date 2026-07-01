@@ -8,6 +8,7 @@ import br.ufsm.pathfinder.map.Grid;
 import br.ufsm.pathfinder.map.JPS;
 import com.opencsv.CSVWriter;
 
+import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.List;
@@ -15,17 +16,19 @@ import java.util.List;
 public class Benchmark {
 
     private static final int CLUSTER_SIZE = 16;
-    private static final int RUNS = 5; // média de N execuções por query
+    private static final int RUNS = 3;
+
+    public static void run(String mapPath, String outputCsvPath, boolean ignored) throws IOException {
+        run(mapPath, outputCsvPath);
+    }
 
     public static void run(String mapPath, String outputCsvPath) throws IOException {
         System.out.println("Carregando mapa: " + mapPath);
         Grid grid = Grid.loadFromFile(mapPath);
         System.out.println("Mapa carregado: " + grid);
 
-        // Queries de teste: pares (start, goal) espalhados pelo mapa
-        List<int[]> queries = generateQueries(grid, 20);
+        List<int[]> queries = generateQueries(grid, 5);
 
-        // Pré-processa HPA* e HPA-JPS uma vez só
         System.out.println("Pré-processando HPA*...");
         HPA hpa = new HPA(grid, CLUSTER_SIZE);
 
@@ -34,15 +37,20 @@ public class Benchmark {
 
         System.out.println("Rodando benchmarks...");
 
-        try (CSVWriter writer = new CSVWriter(new FileWriter(outputCsvPath))) {
+        // escreve cabeçalho só se o arquivo ainda não existe ou está vazio
+        File outFile = new File(outputCsvPath);
+        boolean fileHasData = outFile.exists() && outFile.length() > 0;
 
-            // cabeçalho
-            writer.writeNext(new String[]{
-                    "map", "query", "algorithm",
-                    "time_ms", "nodes_expanded",
-                    "path_length", "path_cost",
-                    "abstract_graph_size", "portal_count"
-            });
+        try (CSVWriter writer = new CSVWriter(new FileWriter(outputCsvPath, fileHasData))) {
+
+            if (!fileHasData) {
+                writer.writeNext(new String[]{
+                        "map", "query", "algorithm",
+                        "time_ms", "nodes_expanded",
+                        "path_length", "path_cost",
+                        "abstract_graph_size", "portal_count", "jump_points"
+                });
+            }
 
             String mapName = mapPath.substring(mapPath.lastIndexOf("/") + 1);
 
@@ -75,6 +83,7 @@ public class Benchmark {
                 BenchmarkResult hpaJpsResult = runHPAJps(grid, hpaJps, start, goal);
                 hpaJpsResult.abstractGraphSize = hpaJps.getAbstractGraphSize();
                 hpaJpsResult.portalCount = hpaJps.getPortalCount();
+                hpaJpsResult.jumpPointCount = hpaJps.getJumpPointsFound();
                 writer.writeNext(buildRow(mapName, q, "HPA-JPS", hpaJpsResult));
             }
         }
@@ -109,6 +118,7 @@ public class Benchmark {
     private static BenchmarkResult runJPS(Grid grid, Cell start, Cell goal) {
         long totalTime = 0;
         int totalNodes = 0;
+        int totalJumpPoints = 0;
         List<Cell> path = List.of();
 
         for (int i = 0; i < RUNS; i++) {
@@ -118,6 +128,7 @@ public class Benchmark {
             long t1 = System.nanoTime();
             totalTime += (t1 - t0);
             totalNodes += jps.getNodesExpanded();
+            totalJumpPoints += jps.getJumpPointsFound();
         }
 
         BenchmarkResult r = new BenchmarkResult();
@@ -125,6 +136,7 @@ public class Benchmark {
         r.nodesExpanded = totalNodes / RUNS;
         r.pathLength = path.size();
         r.pathCost = computeCost(path);
+        r.jumpPointCount = totalJumpPoints / RUNS;
         return r;
     }
 
@@ -171,15 +183,24 @@ public class Benchmark {
     }
 
     private static List<int[]> generateQueries(Grid grid, int count) {
-        List<int[]> queries = new java.util.ArrayList<>();
-        int step = Math.max(grid.width, grid.height) / (int) Math.sqrt(count);
+        List<Cell> walkable = new java.util.ArrayList<>();
+        for (int y = 0; y < grid.height; y++) {
+            for (int x = 0; x < grid.width; x++) {
+                Cell c = grid.getCell(x, y);
+                if (c != null && c.walkable) walkable.add(c);
+            }
+        }
 
+        List<int[]> queries = new java.util.ArrayList<>();
+        if (walkable.size() < 2) return queries;
+
+        int step = walkable.size() / (count + 1);
         for (int i = 0; i < count; i++) {
-            int sx = (i * step * 3) % grid.width;
-            int sy = (i * step) % grid.height;
-            int gx = grid.width  - 1 - sx % grid.width;
-            int gy = grid.height - 1 - sy % grid.height;
-            queries.add(new int[]{sx, sy, gx, gy});
+            Cell start = walkable.get(step * (i + 1));
+            Cell goal  = walkable.get(walkable.size() - 1 - step * (i + 1));
+            if (!start.equals(goal)) {
+                queries.add(new int[]{start.x, start.y, goal.x, goal.y});
+            }
         }
 
         return queries;
@@ -190,7 +211,7 @@ public class Benchmark {
         for (int i = 1; i < path.size(); i++) {
             int dx = Math.abs(path.get(i).x - path.get(i - 1).x);
             int dy = Math.abs(path.get(i).y - path.get(i - 1).y);
-            cost += (dx == 0 || dy == 0) ? 1.0 : 1.414;
+            cost += (dx == 0 || dy == 0) ? Math.max(dx, dy) : Math.sqrt(dx * dx + dy * dy);
         }
         return cost;
     }
@@ -205,7 +226,8 @@ public class Benchmark {
                 String.valueOf(r.pathLength),
                 String.format("%.4f", r.pathCost),
                 String.valueOf(r.abstractGraphSize),
-                String.valueOf(r.portalCount)
+                String.valueOf(r.portalCount),
+                String.valueOf(r.jumpPointCount)
         };
     }
 
@@ -216,5 +238,6 @@ public class Benchmark {
         double pathCost;
         int abstractGraphSize;
         int portalCount;
+        int jumpPointCount;
     }
 }

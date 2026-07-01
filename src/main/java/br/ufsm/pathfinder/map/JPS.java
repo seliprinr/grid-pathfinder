@@ -6,7 +6,9 @@ public class JPS {
 
     private final Grid grid;
     private int nodesExpanded;
+    private int jumpPointsFound;
     private Cell goal;
+    private final List<Cell> jumpPoints = new ArrayList<>();
 
     public JPS(Grid grid) {
         this.grid = grid;
@@ -15,6 +17,8 @@ public class JPS {
     public List<Cell> search(Cell start, Cell goal) {
         grid.reset();
         nodesExpanded = 0;
+        jumpPointsFound = 0;
+        jumpPoints.clear();
         this.goal = goal;
 
         PriorityQueue<Cell> open = new PriorityQueue<>(Comparator.comparingDouble(c -> c.f));
@@ -40,7 +44,7 @@ public class JPS {
 
                 double tentativeG = current.g + distance(current, successor);
 
-                if (tentativeG < successor.g || successor.g == 0) {
+                if (tentativeG < successor.g) {
                     successor.g = tentativeG;
                     successor.h = heuristic(successor, goal);
                     successor.f = successor.g + successor.h;
@@ -63,6 +67,8 @@ public class JPS {
             Cell jp = jump(current, dir[0], dir[1]);
             if (jp != null) {
                 successors.add(jp);
+                jumpPointsFound++;
+                jumpPoints.add(jp);
             }
         }
 
@@ -184,5 +190,13 @@ public class JPS {
 
     public int getNodesExpanded() {
         return nodesExpanded;
+    }
+
+    public int getJumpPointsFound() {
+        return jumpPointsFound;
+    }
+
+    public List<Cell> getJumpPoints() {
+        return Collections.unmodifiableList(jumpPoints);
     }
 }

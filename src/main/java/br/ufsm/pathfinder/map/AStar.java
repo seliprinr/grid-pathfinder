@@ -51,7 +51,7 @@ public class AStar {
                 double moveCost = isDiagonal ? 1.414 : 1.0;
                 double tentativeG = current.g + moveCost;
 
-                if (tentativeG < neighbor.g || neighbor.g == 0) {
+                if (tentativeG < neighbor.g) {
                     neighbor.g = tentativeG;
                     neighbor.h = heuristic(neighbor, goal);
                     neighbor.f = neighbor.g + neighbor.h;
